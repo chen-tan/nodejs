@@ -1,24 +1,67 @@
+const path=require("path");
+const fs=require("fs");
 
+class File{
+    constructor(filename,name,ext,isFile,size,createTime,updateTime){
+        this.filename=filename;
+        this.name=name;
+        this.ext=ext;
+        this.isFile=isFile;
+        this.size=size;
+        this.createTime=createTime;
+        this.updateTime=updateTime;
+    }
+    static async getFile(filename){
+        const file=await fs.promises.stat(filename);
+        const name = path.basename(filename);
+        const ext=path.extname(filename);
+        const isFile=file.isFile();
+        const size=file.size;
+        const createTime=file.birthtime;
+        const updateTime=file.mtime;
+        return new File(filename,name,ext,isFile,size,createTime,updateTime);
+    }
+    async getContent(isBuffer=false){
+        if(this.isFile){
+            if(isBuffer){
+                return await fs.promises.readFile(this.filename);
+            }
+            else{
+                return await fs.promises.readFile(this.filename,"utf-8");
+            }
+        }
+        return null;
+    }
+    async getChildren(){
+        if(this.isFile){
+            return null;
+        }
+        let children = await fs.promises.readdir(this.filename);
+        children = children.map(name=>{
+            const childPath = path.resolve(this.filename,name);
+            return File.getFile(childPath);
+        })
+        return Promise.all(children);
+    }
+}
 
+    // async function test(){
+    //     const filename = path.resolve(__dirname,"myFiles");
+    //     const file =await File.getFile(filename);
+    //     const res = await file.getChildren();
+    //     console.log(res);
+    // } 
 
-// process对象
-// process.cwd() 与当前文件在哪没关系，是运行时命令行目录
-// console.log('当前命令行：',process.cwd());
+    async function readDir(dirname){
+        const file = File.getFile(dirname);
+        return (await file).getChildren();
+    }
 
-// 强制退出进程
-// setTimeout(()=>{
-//     console.log('abc');
-// },1000);
-// process.exit();
-// 有参数，默认为0，表示正常退出，没有错误
+    async function test(){
+        const dirname=path.resolve(__dirname,"myFiles");
+        const result = await readDir(dirname);
+        console.log(await result[2].getChildren()); 
+        console.log(result);
+    }
 
-// node index a b c d 得到命令行参数
-// console.log(process.argv);
-
-// 操作系统运行平台
-// console.log(process.platform);
-
-// 杀死一个进程 kill(进程的id)
-// console.log(process.kill);
-
-// console.log(process.env);
+test();
