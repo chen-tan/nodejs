@@ -1,67 +1,74 @@
 const path=require("path");
 const fs=require("fs");
+const { kMaxLength } = require("buffer");
 
-class File{
-    constructor(filename,name,ext,isFile,size,createTime,updateTime){
-        this.filename=filename;
-        this.name=name;
-        this.ext=ext;
-        this.isFile=isFile;
-        this.size=size;
-        this.createTime=createTime;
-        this.updateTime=updateTime;
-    }
-    static async getFile(filename){
-        const file=await fs.promises.stat(filename);
-        const name = path.basename(filename);
-        const ext=path.extname(filename);
-        const isFile=file.isFile();
-        const size=file.size;
-        const createTime=file.birthtime;
-        const updateTime=file.mtime;
-        return new File(filename,name,ext,isFile,size,createTime,updateTime);
-    }
-    async getContent(isBuffer=false){
-        if(this.isFile){
-            if(isBuffer){
-                return await fs.promises.readFile(this.filename);
-            }
-            else{
-                return await fs.promises.readFile(this.filename,"utf-8");
-            }
-        }
-        return null;
-    }
-    async getChildren(){
-        if(this.isFile){
-            return null;
-        }
-        let children = await fs.promises.readdir(this.filename);
-        children = children.map(name=>{
-            const childPath = path.resolve(this.filename,name);
-            return File.getFile(childPath);
-        })
-        return Promise.all(children);
-    }
+// const file=path.resolve(__dirname,"copy/a.txt");
+// const ws=fs.createWriteStream(file,{
+//     highWaterMark:16*1024,
+//     encoding:"utf-8",
+// });
+// for(let i=0;i<1024*1024*10;i++){
+//     ws.write("a");
+// }
+// ws.end();
+
+
+//把一个文件复制到另一个文件
+
+//方式一
+
+async function method1(){
+    const from=path.resolve(__dirname,"copy/a.txt");
+    const to=path.resolve(__dirname,"copy/b.txt");
+    console.time("方式1");
+    const content=await fs.promises.readFile(from);
+    await fs.promises.writeFile(to,content);
+    console.timeEnd("方式1");
 }
 
-    // async function test(){
-    //     const filename = path.resolve(__dirname,"myFiles");
-    //     const file =await File.getFile(filename);
-    //     const res = await file.getChildren();
-    //     console.log(res);
-    // } 
+method1();
 
-    async function readDir(dirname){
-        const file = File.getFile(dirname);
-        return (await file).getChildren();
-    }
+//方式二
+async function method2(){
+    const from=path.resolve(__dirname,"copy/a.txt");
+    const to=path.resolve(__dirname,"copy/c.txt");
+    const rs=fs.createReadStream(from,{
+        encoding:"utf-8",
+        highWaterMark:16*1024
+    });
+    const ws=fs.createWriteStream(to,{
+        encoding:"utf-8",
+        highWaterMark:16*1024
+    })
+    console.time("方式2");
+    rs.on("data",chunk=>{
+        let flag = ws.write(chunk);
+        if(!flag){
+            rs.pause();
+        }
+    })
+    ws.on("drain",()=>{
+        rs.resume();
+    })
+    rs.on("close",()=>{
+        ws.end();
+        console.timeEnd("方式2");
+        console.log("复制完成");
+    })
+}
 
-    async function test(){
-        const dirname=path.resolve(__dirname,"myFiles");
-        const result = await readDir(dirname);
-        console.log(await result[2].getChildren()); 
-        console.log(result);
-    }
+method2();
 
-test();
+async function method3(){
+    const from=path.resolve(__dirname,"copy/a.txt");
+    const to=path.resolve(__dirname,"copy/d.txt");
+    const rs=fs.createReadStream(from);
+    const ws=fs.createWriteStream(to,{
+        encoding:"utf-8",
+        highWaterMark:16*1024
+    })
+    console.time("方式3");
+    rs.pipe(ws);
+    console.timeEnd("方式3");
+}
+method3();
