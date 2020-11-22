@@ -1,74 +1,60 @@
-const path=require("path");
-const fs=require("fs");
-const { kMaxLength } = require("buffer");
+const net = require("net");
+//访问一个网站，分别得到响应头和响应体的数据
 
-// const file=path.resolve(__dirname,"copy/a.txt");
-// const ws=fs.createWriteStream(file,{
-//     highWaterMark:16*1024,
-//     encoding:"utf-8",
-// });
-// for(let i=0;i<1024*1024*10;i++){
-//     ws.write("a");
-// }
-// ws.end();
+const socket = net.createConnection({
+    host:"www.baidu.com",
+    port:80
+},()=>{
+    console.log("连接成功");
+})
 
-
-//把一个文件复制到另一个文件
-
-//方式一
-
-async function method1(){
-    const from=path.resolve(__dirname,"copy/a.txt");
-    const to=path.resolve(__dirname,"copy/b.txt");
-    console.time("方式1");
-    const content=await fs.promises.readFile(from);
-    await fs.promises.writeFile(to,content);
-    console.timeEnd("方式1");
-}
-
-method1();
-
-//方式二
-async function method2(){
-    const from=path.resolve(__dirname,"copy/a.txt");
-    const to=path.resolve(__dirname,"copy/c.txt");
-    const rs=fs.createReadStream(from,{
-        encoding:"utf-8",
-        highWaterMark:16*1024
-    });
-    const ws=fs.createWriteStream(to,{
-        encoding:"utf-8",
-        highWaterMark:16*1024
-    })
-    console.time("方式2");
-    rs.on("data",chunk=>{
-        let flag = ws.write(chunk);
-        if(!flag){
-            rs.pause();
+let isFirst=true;
+let receive='';
+let contentLength=0;
+let headObj={};
+function parseResponse(response){
+    if(isFirst){
+        const index = response.indexOf("\r\n\r\n");
+        const head=response.substring(0,index);
+        const body=response.substring(index+2);
+        headObj = head.split("\r\n").slice(1).reduce((obj,item)=>{
+            const arr=item.split(":");
+            obj[arr[0]]=arr[1];
+            return obj;
+        },{})
+        contentLength=headObj["Content-Length"];
+        // console.log("contentLength:",contentLength);
+        // console.log("bodyLength:",body.length);
+        if(contentLength-body.length<400){
+            receive=body;
+            socket.end();
+        }else{
+            receive+=body;
         }
-    })
-    ws.on("drain",()=>{
-        rs.resume();
-    })
-    rs.on("close",()=>{
-        ws.end();
-        console.timeEnd("方式2");
-        console.log("复制完成");
-    })
+        isFirst=false;
+    }else{
+        receive+=response;
+        if(contentLength-receive.length<400){
+            socket.end();
+    }
+    }
+    
 }
 
-method2();
-
-async function method3(){
-    const from=path.resolve(__dirname,"copy/a.txt");
-    const to=path.resolve(__dirname,"copy/d.txt");
-    const rs=fs.createReadStream(from);
-    const ws=fs.createWriteStream(to,{
-        encoding:"utf-8",
-        highWaterMark:16*1024
-    })
-    console.time("方式3");
-    rs.pipe(ws);
-    console.timeEnd("方式3");
+socket.on("data",async chunk=>{
+    const response=chunk.toString("utf-8");
+    parseResponse(response);
+    console.log("这是head信息：",headObj);
+    console.log("这是body信息：",receive);
 }
-method3();
+)
+
+socket.write(`GET / HTTP/1.1
+Host: www.baidu.com
+
+`);
+
+socket.on("close",()=>{
+    console.log("结束了");
+
+})
