@@ -1,60 +1,30 @@
 const net = require("net");
-//访问一个网站，分别得到响应头和响应体的数据
+const fs=require("fs");
+const path=require("path");
 
-const socket = net.createConnection({
-    host:"www.baidu.com",
-    port:80
-},()=>{
-    console.log("连接成功");
+const server = net.createServer();
+server.listen(9527);
+server.on("listening",()=>{
+    console.log("正在监听9527端口");
 })
 
-let isFirst=true;
-let receive='';
-let contentLength=0;
-let headObj={};
-function parseResponse(response){
-    if(isFirst){
-        const index = response.indexOf("\r\n\r\n");
-        const head=response.substring(0,index);
-        const body=response.substring(index+2);
-        headObj = head.split("\r\n").slice(1).reduce((obj,item)=>{
-            const arr=item.split(":");
-            obj[arr[0]]=arr[1];
-            return obj;
-        },{})
-        contentLength=headObj["Content-Length"];
-        // console.log("contentLength:",contentLength);
-        // console.log("bodyLength:",body.length);
-        if(contentLength-body.length<400){
-            receive=body;
-            socket.end();
-        }else{
-            receive+=body;
-        }
-        isFirst=false;
-    }else{
-        receive+=response;
-        if(contentLength-receive.length<400){
-            socket.end();
-    }
-    }
-    
-}
+server.on("connection",socket=>{
+    console.log("有客户端连接到了");
+    socket.on("data",async chunk=>{
+        // console.log("客户端的请求内容为",chunk.toString("utf-8"));
+        const filename = path.resolve(__dirname,"./convey.jpg");
+        const imgBuffer = await fs.promises.readFile(filename);
+        const headBuffer=Buffer.from(`HTTP/1.1 200 OK
+Content-Type:image/jpg
+Connection:keep-alive
 
-socket.on("data",async chunk=>{
-    const response=chunk.toString("utf-8");
-    parseResponse(response);
-    console.log("这是head信息：",headObj);
-    console.log("这是body信息：",receive);
-}
-)
-
-socket.write(`GET / HTTP/1.1
-Host: www.baidu.com
-
-`);
-
-socket.on("close",()=>{
-    console.log("结束了");
-
+`,"utf-8");
+        //Buffer.concat传的参数要是一个数组
+        const result=Buffer.concat([headBuffer,imgBuffer]);
+        socket.write(result);
+        socket.end();
+    })
+    socket.on("end",()=>{
+        console.log("连接断开了");
+    })
 })
