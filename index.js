@@ -1,48 +1,54 @@
-const http= require("http");
-const URL = require("url");
-//作为客户端
-// const request = http.request("http://yuanjin.tech:5005/api/movie",{
-//     method:"GET"
-// },resp=>{
-//     console.log("响应码：",resp.statusCode);
-//     console.log("响应头：",resp.headers);
-//     let result="";
-//     resp.on("data",chunk=>{
-//         result+=chunk.toString("utf-8");
-//     })
-//     resp.on("end",()=>{
-//         console.log(JSON.parse(result));
-//     })
-// })
+const http=require("http");
+const path=require("path");
+const URL=require("url");
+const fs=require("fs");
 
-// request.end();
-
-//作为服务器
-
-function handleReq(req){
+async function getStat(filename){
+    try{
+        return await fs.promises.stat(filename);
+    }
+    catch{
+        return null;
+    }
+}
+async function getFileInfo(req){
     const urlObj=URL.parse(req.url);
-    console.log("请求地址：",urlObj);
-    console.log("请求头",req.headers);
-    console.log("请求方法",req.method);
-    let body="";
-    req.on("data",chunk=>{
-        body+=chunk.toString("utf-8");
-    })
-    req.on("end",()=>{
-        console.log("请求体",body);
-    })
+    const pathname=urlObj.pathname;
+    let filename;
+    filename=path.resolve(__dirname,"public",pathname.substr(1));
+    let stat = await getStat(filename);
+    if(!stat){
+        return null;
+    }else if(stat.isDirectory()){
+        filename=path.resolve(__dirname,"public",pathname.substr(1),"index.html");
+        stat=await getStat(filename);
+        if(!stat){
+            return null;
+        }else{
+            return fs.promises.readFile(filename);
+        }
+    }else{
+            return fs.promises.readFile(filename);
+    }
+}
+
+async function handler(req,res){
+    const info=await getFileInfo(req);
+    if(info){
+        res.statusCode=200;
+        res.write(info);
+    }else{
+        res.statusCode=404;
+        res.write("Resource is not exist");
+    }
+    res.end();
 }
 
 const server = http.createServer((req,res)=>{
-    handleReq(req);
-    res.setHeader("a","1");
-    res.setHeader("b","2");
-    res.statusCode=201;
-    res.write("好晚了该去睡觉了");
-    res.end();
-})
+    handler(req,res);
+});
 
-server.listen(9527);
+server.listen(9888);
 server.on("listening",()=>{
-    console.log("有请求来了！");
+    console.log("server listen 9888");
 })
