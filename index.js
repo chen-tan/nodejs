@@ -1,6 +1,6 @@
 const http=require("http");
-const path=require("path");
 const URL=require("url");
+const path=require("path");
 const fs=require("fs");
 
 async function getStat(filename){
@@ -11,44 +11,47 @@ async function getStat(filename){
         return null;
     }
 }
+
 async function getFileInfo(req){
     const urlObj=URL.parse(req.url);
     const pathname=urlObj.pathname;
     let filename;
     filename=path.resolve(__dirname,"public",pathname.substr(1));
     let stat = await getStat(filename);
+    console.log(stat);
     if(!stat){
         return null;
     }else if(stat.isDirectory()){
         filename=path.resolve(__dirname,"public",pathname.substr(1),"index.html");
         stat=await getStat(filename);
-        if(!stat){
-            return null;
+        if(stat){
+            return await fs.promises.readFile(filename);
         }else{
-            return fs.promises.readFile(filename);
+            return null;
         }
     }else{
-            return fs.promises.readFile(filename);
+        return await fs.promises.readFile(filename);
     }
 }
 
 async function handler(req,res){
-    const info=await getFileInfo(req);
+    //得到请求的文件名称
+    const info = await getFileInfo(req);
     if(info){
         res.statusCode=200;
         res.write(info);
     }else{
         res.statusCode=404;
-        res.write("Resource is not exist");
+        res.write("Your Resource is not Found");
     }
     res.end();
 }
 
-const server = http.createServer((req,res)=>{
+const server=http.createServer((req,res)=>{
     handler(req,res);
-});
+})
 
-server.listen(9888);
+server.listen(5000);
 server.on("listening",()=>{
-    console.log("server listen 9888");
+    console.log("Server listening 5000");
 })

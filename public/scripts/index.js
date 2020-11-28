@@ -1,1 +1,3 @@
-alert("搭建一个静态资源服务器！");
+
+let body=document.getElementsByTagName("body")[0];
+body.style.color="green";
